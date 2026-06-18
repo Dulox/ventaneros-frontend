@@ -1,6 +1,4 @@
 // ═══ SUPABASE + BACKEND API CLIENT ═══════════════════════════════════════════
-// Configuración real de conexión a Supabase (Auth) y al backend (Railway).
-
 const SUPABASE_URL = "https://opoumjothkwxulkviaeq.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_d6grmH4lhCb4VzmpWCDbbw_NucD_zev";
 const API_URL = "https://ventaneros-backend-production.up.railway.app";
@@ -55,13 +53,13 @@ export function logout() {
   clearSession();
 }
 
+export function isLoggedIn() {
+  return !!getAccessToken();
+}
+
 function getAccessToken() {
   const s = loadSession();
   return s?.access_token || null;
-}
-
-export function isLoggedIn() {
-  return !!getAccessToken();
 }
 
 // ── BACKEND API ───────────────────────────────────────────────────────────
@@ -79,8 +77,10 @@ async function apiPost(path, body) {
   });
 
   if (res.status === 401) {
+    const data = await res.json().catch(() => ({}));
+    const msg = data.detail || "Token inválido. Inicia sesión de nuevo.";
     clearSession();
-    throw new Error("Tu sesión expiró. Inicia sesión de nuevo.");
+    throw new Error(msg);
   }
   if (res.status === 403) {
     const data = await res.json().catch(() => ({}));
