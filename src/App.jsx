@@ -731,14 +731,6 @@ function OrderModal({lines,onClose}){
   const [loadingPdf,setLoadingPdf]=useState(false);
   const [pdfErr,setPdfErr]=useState("");
   const sf=k=>e=>setInfo(f=>({...f,[k]:e.target.value}));
-  const [siscopProds,setSiscopProds]=useState([]);
-  const [siscopCod,setSiscopCod]=useState("");
-  const [siscopQ,setSiscopQ]=useState("");
-  useEffect(()=>{
-    if(sel==="siscop"&&siscopProds.length===0){
-      import("./api.js").then(m=>m.listarProductosSiscop()).then(setSiscopProds).catch(()=>{});
-    }
-  },[sel]);
   const tot=sumOrder(lines);
 
   async function handleDownload(){
@@ -1128,6 +1120,14 @@ function Calculadoras({init}){
   const [lines,setLines]=useState([]);const [showModal,setShowModal]=useState(false);
   const [loading,setLoading]=useState(false);
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const [siscopProds,setSiscopProds]=useState([]);
+  const [siscopCod,setSiscopCod]=useState("");
+  const [siscopQ,setSiscopQ]=useState("");
+  useEffect(()=>{
+    if(sel==="siscop"&&siscopProds.length===0){
+      import("./api.js").then(m=>m.listarProductosSiscop()).then(setSiscopProds).catch(()=>{});
+    }
+  },[sel]);
 
   async function calc(){
     setErrs([]);setRes(null);const e=[];
