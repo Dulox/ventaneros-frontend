@@ -112,9 +112,6 @@ export async function descargarOrdenPDF(lines, info) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 // ── SISCOP product catalog (names only; recipes stay on the backend) ──
 export async function listarProductosSiscop() {
   const token = getAccessToken();
