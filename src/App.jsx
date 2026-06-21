@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { loginWithEmail, signupWithEmail, logout, isLoggedIn, calcularEnServidor, descargarOrdenPDF } from "./api.js";
 
 const G = `
@@ -519,6 +519,7 @@ const VENTANAS=[
   {id:"p92",nombre:"Corrediza Med. P-92",icon:"🏗️",desc:"Perfiles ALD-900, grandes dimensiones",on:true},
   {id:"int",nombre:"Corrediza Integrada",icon:"⬛",desc:"Acabado flush integrado en pared",on:false,hidden:true},
   {id:"pu",nombre:"Puertas Comercial & Residencial",icon:"🚪",desc:"GK-48/50/52/84/85, 1 o 2 hojas, Comercial/Residencial",on:true},
+  {id:"siscop",nombre:"Productos SISCOP",icon:"📦",desc:"191 productos importados",on:true},
 ];
 const DC=[
   {id:1,nombre:"Constructora Pérez & Asociados",contacto:"Luis Pérez",tel:"809-555-1234",email:"lperez@construc.do",ciudad:"Sto. Domingo",tipo:"Empresa",estado:"Activo",ordenes:8},
@@ -730,6 +731,14 @@ function OrderModal({lines,onClose}){
   const [loadingPdf,setLoadingPdf]=useState(false);
   const [pdfErr,setPdfErr]=useState("");
   const sf=k=>e=>setInfo(f=>({...f,[k]:e.target.value}));
+  const [siscopProds,setSiscopProds]=useState([]);
+  const [siscopCod,setSiscopCod]=useState("");
+  const [siscopQ,setSiscopQ]=useState("");
+  useEffect(()=>{
+    if(sel==="siscop"&&siscopProds.length===0){
+      import("./api.js").then(m=>m.listarProductosSiscop()).then(setSiscopProds).catch(()=>{});
+    }
+  },[sel]);
   const tot=sumOrder(lines);
 
   async function handleDownload(){
@@ -828,6 +837,49 @@ function HwRow({label, value, unit, highlight=false}){
 function CalcResult({r, f, onAdd}){
   if(!r) return null;
   const tipo = r.tipo;
+  if(tipo==="siscop"){
+    return(<div className="cr">
+      <div className="hero">
+        <div>
+          <div className="hl">Materiales · {r.cod_prod}</div>
+          <div className="hs">
+            <span className="ht">{r.dim.ancho} × {r.dim.alto}</span>
+            <span className="ht">{r.hojas} hojas</span>
+            <span className="ht">{r.cantidad} und</span>
+          </div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div className="hn">{r.pie}</div>
+          <div className="hu">pies²</div>
+        </div>
+      </div>
+      <div className="card card-outlined">
+        <div className="card-hdr"><div className="card-ttl">{r.nombre||r.cod_prod}</div></div>
+        <div className="twrap">
+          <table>
+            <thead><tr>
+              <th>Componente</th><th>Código</th>
+              <th style={{textAlign:"center"}}>Cant.</th>
+              <th>Medida</th>
+              <th style={{textAlign:"right"}}>Cantidad</th>
+            </tr></thead>
+            <tbody>
+              {r.components.map((c,i)=>(
+                <tr key={i}>
+                  <td style={{fontWeight:500}}>{c.descrip}</td>
+                  <td><span className="mono" style={{fontSize:11,color:"var(--on-sur3)"}}>{c.codigo}</span></td>
+                  <td style={{textAlign:"center",fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:"var(--pri)"}}>{c.qty}</td>
+                  <td><span className="mono" style={{color:"var(--sec)",fontWeight:600}}>{c.medida_v?`${c.medida} × ${c.medida_v}`:(c.medida||"—")}</span></td>
+                  <td style={{textAlign:"right",fontWeight:700}}>{c.measure} <span style={{fontSize:11,color:"var(--on-sur4)"}}>{c.unit}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <button className="add-line-btn" onClick={onAdd}>＋ Agregar a la orden de producción</button>
+    </div>);
+  }
 
   // ── build profile tables per type ─────────────────────────────────────────
   let marcoRows=[], hojaRows=[], extraRows=[], balaRows=[];
@@ -1102,6 +1154,10 @@ function Calculadoras({init}){
       payload.hojas=parseInt(form.hojas);
       payload.tipo_puerta=form.tipoPuerta;
       payload.posicion=form.posicion;
+    } else if(sel==="siscop"){
+      if(!siscopCod){ setErrs(["Selecciona un producto."]); return; }
+      payload.cod_prod=siscopCod;
+      payload.hojas=parseInt(form.hojas)||2;
     }
 
     setLoading(true);
@@ -1159,12 +1215,25 @@ function Calculadoras({init}){
         <div className="card">
           <div className="card-hdr" style={{paddingBottom:16}}><div className="card-ttl">Datos del hueco</div></div>
           <div className="card-bdy"><div className="fgrid" style={{gap:14}}>
+            {sel==="siscop"&&<>
+              <div className="fld"><label>Buscar producto</label>
+                <input value={siscopQ} onChange={e=>setSiscopQ(e.target.value)} placeholder="Ej: CORR P92, persiana..."/>
+              </div>
+              <div className="fld"><label>Producto ({siscopProds.length})</label>
+                <select value={siscopCod} onChange={e=>setSiscopCod(e.target.value)}>
+                  <option value="">— Selecciona —</option>
+                  {siscopProds.filter(p=>(p.nombre+" "+p.cod_prod).toLowerCase().includes(siscopQ.toLowerCase())).slice(0,200).map(p=>(
+                    <option key={p.cod_prod} value={p.cod_prod}>{p.nombre} ({p.serie})</option>
+                  ))}
+                </select>
+              </div>
+            </>}
             <div className="fld"><label>Unidad de medida</label><select value={form.unidad} onChange={sf("unidad")}><option>Pulgadas</option><option>Metros</option></select></div>
             <div className="fgrid f2">
               <div className="fld"><label>Ancho</label><input type="number" step="0.0625" value={form.ancho} onChange={sf("ancho")} placeholder={form.unidad==="Metros"?"1.20":"48"}/></div>
               <div className="fld"><label>Alto</label><input type="number" step="0.0625" value={form.alto} onChange={sf("alto")} placeholder={form.unidad==="Metros"?"1.50":"60"}/></div>
             </div>
-            {(isMed||!isPer&&!isPuerta)&&<div className="fgrid f2">
+            {(isMed||sel==="siscop"||!isPer&&!isPuerta)&&<div className="fgrid f2">
               <div className="fld"><label>Hojas</label><select value={form.hojas} onChange={sf("hojas")}>{[2,3,4,6].map(h=><option key={h} value={h}>{h} hojas</option>)}</select></div>
               <div className="fld"><label>Cantidad</label><input type="number" min="1" value={form.cantidad} onChange={sf("cantidad")}/></div>
             </div>}
