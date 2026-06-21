@@ -112,17 +112,6 @@ export async function descargarOrdenPDF(lines, info) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// ── SISCOP product catalog (names only; recipes stay on the backend) ──
-export async function listarProductosSiscop() {
-  const token = getAccessToken();
-  if (!token) throw new Error("No has iniciado sesión.");
-  const res = await fetch(`${API_URL}/api/calc/products`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error("No se pudieron cargar los productos.");
-  return res.json();
-}
-
 setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
