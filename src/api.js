@@ -99,17 +99,6 @@ export async function calcularEnServidor(tipo, datos) {
   return res.json();
 }
 
-// ── SISCOP product catalog (names only; recipes stay on the backend) ──
-export async function listarProductosSiscop() {
-  const token = getAccessToken();
-  if (!token) throw new Error("No has iniciado sesión.");
-  const res = await fetch(`${API_URL}/api/calc/products`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error("No se pudieron cargar los productos.");
-  return res.json(); // [{cod_prod, nombre, serie}, ...]
-}
-
 export async function descargarOrdenPDF(lines, info) {
   const res = await apiPost("/api/pdf/orden", { lines, info });
   const blob = await res.blob();
