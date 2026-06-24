@@ -164,3 +164,32 @@ export async function descargarOrdenPDF(lines, info) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// ── CLIENTES ──────────────────────────────────────────────────────────────
+async function apiDelete(path) {
+  const token = getAccessToken();
+  if (!token) throw new Error("No has iniciado sesión.");
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}`, ...deviceHeaders() },
+  });
+  await handleResponse(res);
+  return res.json();
+}
+
+export async function getClientes() {
+  return apiGet("/api/clientes");
+}
+
+export async function createCliente(data) {
+  const res = await apiPost("/api/clientes", data);
+  return res.json();
+}
+
+export async function updateCliente(id, data) {
+  return apiPut(`/api/clientes/${id}`, data);
+}
+
+export async function deleteCliente(id) {
+  return apiDelete(`/api/clientes/${id}`);
+}

@@ -1,11 +1,12 @@
 /**
- * CLIENTES EXPANDIDO
+ * CLIENTES EXPANDIDO - integrado con Supabase via backend API
  * 2 vistas:
- *  1. Lista    — tabla con búsqueda, filtros, KPIs
- *  2. Ficha    — detalle completo: datos generales, 4 contactos,
- *                crédito, historial de compras, CxC
+ *  1. Lista    - tabla con busqueda, filtros, KPIs
+ *  2. Ficha    - detalle completo: datos generales, 4 contactos,
+ *                credito, historial de compras, CxC
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getClientes, createCliente, updateCliente, deleteCliente } from "../../api.js";
 
 function fmtRD(n)   { return `RD$${Math.round(n||0).toLocaleString("es-DO")}`; }
 function fmtDate(d) { return d ? new Date(d+"T12:00:00").toLocaleDateString("es-DO",{day:"2-digit",month:"short",year:"numeric"}) : "—"; }
@@ -22,89 +23,74 @@ function emptyContacto() {
   return { nombre:"", tel:"", celular:"", email:"", notas:"" };
 }
 
-// ── Demo data ─────────────────────────────────────────────────────────────────
-const DEMO = [
-  {
-    id:1, codigo:"CLT-001", nombre:"Constructora Pérez & Asociados", nombre_comercial:"",
-    rnc:"101-12345-6", tipo:"Empresa", estado:"Activo",
-    dir_calle:"Av. 27 de Febrero #450", dir_sector:"Naco", zona:"Santo Domingo",
-    zip:"10114", tel:"809-555-1234", celular:"829-555-1234", email:"info@perezconstr.do", web:"perezconstr.do",
-    vendedor:"Mario Vuk", tipo_ncf:"B01 — Crédito Fiscal", forma_pago:"Crédito 30d",
-    limite_credito:500000, descuento_preest:0, exento_impuestos:false, pct_exento:0,
-    notas:"Cliente prioritario. Proyectos residenciales grandes.",
-    creado:today(), modificado:today(),
-    contactos:{
-      principal:    { nombre:"Carlos Pérez",   tel:"809-555-1234", celular:"829-555-1234", email:"cperez@perezconstr.do",   notas:"Dueño" },
-      compras:      { nombre:"Ana Martínez",    tel:"809-555-1235", celular:"",             email:"compras@perezconstr.do",  notas:"Encargada de compras" },
-      mantenimiento:{ nombre:"Roberto Gómez",   tel:"809-555-1236", celular:"849-555-1236", email:"",                        notas:"Supervisor de obras" },
-      cobros:       { nombre:"Patricia Díaz",   tel:"809-555-1237", celular:"",             email:"contabilidad@perezconstr.do", notas:"" },
-    },
-    historial:[
-      { tipo:"Factura", numero:"FAC-001", fecha:"2025-06-01", total:56280,  estado:"Pagada"   },
-      { tipo:"Cotización",numero:"COT-001",fecha:"2025-06-01",total:56280,  estado:"Facturada"},
-    ],
-    cxc:{ total:0, pagado:0 },
-  },
-  {
-    id:2, codigo:"CLT-002", nombre:"Ferretería El Martillo", nombre_comercial:"El Martillo SRL",
-    rnc:"102-56789-1", tipo:"Distribuidor", estado:"Activo",
-    dir_calle:"Calle Independencia #210", dir_sector:"Centro", zona:"Santiago",
-    zip:"51000", tel:"829-555-5678", celular:"", email:"ventas@elmartillo.do", web:"",
-    vendedor:"Carmen Pérez", tipo_ncf:"B01 — Crédito Fiscal", forma_pago:"Crédito 15d",
-    limite_credito:200000, descuento_preest:5, exento_impuestos:false, pct_exento:0,
-    notas:"Distribuidor en Santiago. Compras frecuentes de herrajes.",
-    creado:today(), modificado:today(),
-    contactos:{
-      principal:    { nombre:"Juan Martillo",  tel:"829-555-5678", celular:"829-555-5679", email:"jmartillo@elmartillo.do", notas:"Gerente" },
-      compras:      { nombre:"",               tel:"",             celular:"",              email:"",                        notas:"" },
-      mantenimiento:{ nombre:"",               tel:"",             celular:"",              email:"",                        notas:"" },
-      cobros:       { nombre:"Rosa Jiménez",   tel:"829-555-5680", celular:"",              email:"cobros@elmartillo.do",    notas:"" },
-    },
-    historial:[
-      { tipo:"Factura", numero:"FAC-002", fecha:"2025-06-05", total:22420, estado:"Pendiente" },
-    ],
-    cxc:{ total:22420, pagado:0 },
-  },
-  {
-    id:3, codigo:"CLT-003", nombre:"María González", nombre_comercial:"",
-    rnc:"", tipo:"Persona", estado:"Activo",
-    dir_calle:"Calle Las Flores #12", dir_sector:"Los Jardines", zona:"Santo Domingo",
-    zip:"", tel:"849-555-9012", celular:"849-555-9013", email:"maria@gmail.com", web:"",
-    vendedor:"Carmen Pérez", tipo_ncf:"B02 — Consumidor Final", forma_pago:"Contado",
-    limite_credito:0, descuento_preest:0, exento_impuestos:false, pct_exento:0,
-    notas:"",
-    creado:today(), modificado:today(),
-    contactos:{
-      principal:    { nombre:"María González", tel:"849-555-9012", celular:"849-555-9013", email:"maria@gmail.com", notas:"" },
-      compras:      emptyContacto(), mantenimiento:emptyContacto(), cobros:emptyContacto(),
-    },
-    historial:[
-      { tipo:"Factura", numero:"FAC-004", fecha:"2025-05-15", total:6800, estado:"Vencida" },
-    ],
-    cxc:{ total:6800, pagado:0 },
-  },
-  {
-    id:4, codigo:"CLT-004", nombre:"Inmobiliaria Vista Verde", nombre_comercial:"Vista Verde SRL",
-    rnc:"130-98765-4", tipo:"Proyecto", estado:"Activo",
-    dir_calle:"Km 14.5 Autopista Duarte", dir_sector:"", zona:"Santo Domingo",
-    zip:"", tel:"809-555-3456", celular:"", email:"proyectos@vistaverde.do", web:"vistaverde.do",
-    vendedor:"Mario Vuk", tipo_ncf:"B01 — Crédito Fiscal", forma_pago:"Crédito 60d",
-    limite_credito:1000000, descuento_preest:0, exento_impuestos:false, pct_exento:0,
-    notas:"Proyectos de gran escala. Requiere aprobación gerencial para descuentos.",
-    creado:today(), modificado:today(),
-    contactos:{
-      principal:    { nombre:"Roberto Verde",  tel:"809-555-3456", celular:"829-555-3456", email:"rverde@vistaverde.do",     notas:"Director" },
-      compras:      { nombre:"Ing. Luis Marte",tel:"809-555-3457", celular:"",              email:"lmarte@vistaverde.do",     notas:"Gerente de proyectos" },
-      mantenimiento:{ nombre:"",               tel:"",             celular:"",              email:"",                         notas:"" },
-      cobros:       { nombre:"Miriam Santos",  tel:"809-555-3458", celular:"",              email:"finanzas@vistaverde.do",   notas:"" },
-    },
-    historial:[
-      { tipo:"Factura",   numero:"FAC-003", fecha:"2025-05-28", total:89208, estado:"Parcial"  },
-      { tipo:"Cotización",numero:"COT-004", fecha:"2025-05-28", total:75600, estado:"Aprobada" },
-    ],
-    cxc:{ total:89208, pagado:40000 },
-  },
-];
+// Normaliza un cliente que viene de Supabase para que el front nunca reciba
+// undefined en campos que el render asume presentes (contactos, historial, cxc).
+function normalizeCliente(c) {
+  return {
+    ...c,
+    codigo: c.codigo || "",
+    nombre_comercial: c.nombre_comercial || "",
+    rnc: c.rnc || "",
+    tipo: c.tipo || "Empresa",
+    estado: c.estado || "Activo",
+    dir_calle: c.dir_calle || "",
+    dir_sector: c.dir_sector || "",
+    zona: c.zona || c.ciudad || "Santo Domingo",
+    zip: c.zip || "",
+    tel: c.telefono || "",
+    celular: c.celular || "",
+    email: c.email || "",
+    web: c.web || "",
+    vendedor: c.vendedor || "Sin asignar",
+    tipo_ncf: c.tipo_ncf || "B02 — Consumidor Final",
+    forma_pago: c.forma_pago || "Contado",
+    limite_credito: Number(c.limite_credito) || 0,
+    descuento_preest: Number(c.descuento_preest) || 0,
+    exento_impuestos: !!c.exento_impuestos,
+    pct_exento: Number(c.pct_exento) || 0,
+    notas: c.notas || "",
+    contactos: (c.contactos && Object.keys(c.contactos).length)
+      ? {
+          principal:     c.contactos.principal     || emptyContacto(),
+          compras:       c.contactos.compras        || emptyContacto(),
+          mantenimiento: c.contactos.mantenimiento || emptyContacto(),
+          cobros:        c.contactos.cobros         || emptyContacto(),
+        }
+      : { principal:emptyContacto(), compras:emptyContacto(), mantenimiento:emptyContacto(), cobros:emptyContacto() },
+    historial: Array.isArray(c.historial) ? c.historial : [],
+    cxc: c.cxc && typeof c.cxc === "object" ? c.cxc : { total:0, pagado:0 },
+  };
+}
+
+// Convierte el form del front al payload que espera el backend (solo columnas reales).
+function toPayload(form) {
+  return {
+    nombre: form.nombre,
+    codigo: form.codigo || null,
+    nombre_comercial: form.nombre_comercial || null,
+    telefono: form.tel || null,
+    celular: form.celular || null,
+    email: form.email || null,
+    web: form.web || null,
+    ciudad: form.zona || null,
+    zona: form.zona || null,
+    dir_calle: form.dir_calle || null,
+    dir_sector: form.dir_sector || null,
+    zip: form.zip || null,
+    tipo: form.tipo || null,
+    rnc: form.rnc || null,
+    estado: form.estado || null,
+    vendedor: form.vendedor || null,
+    tipo_ncf: form.tipo_ncf || null,
+    forma_pago: form.forma_pago || null,
+    limite_credito: Number(form.limite_credito) || 0,
+    descuento_preest: Number(form.descuento_preest) || 0,
+    exento_impuestos: !!form.exento_impuestos,
+    pct_exento: Number(form.pct_exento) || 0,
+    contactos: form.contactos || {},
+    notas: form.notas || null,
+  };
+}
 
 function emptyForm(lista) {
   return {
@@ -122,14 +108,34 @@ function emptyForm(lista) {
 
 const EST_HIST = { Pagada:"chip-filled-sec", Pendiente:"chip-filled-warn", Parcial:"chip-filled-pri", Vencida:"chip-filled-err", Aprobada:"chip-filled-sec", Facturada:"chip", Rechazada:"chip-filled-err" };
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 export default function Clientes() {
-  const [lista,  setLista]  = useState(DEMO);
+  const [lista,  setLista]  = useState([]);
+  const [loading,setLoading]= useState(true);
+  const [error,  setError]  = useState("");
   const [view,   setView]   = useState("list");   // list | detail | form
   const [sel,    setSel]    = useState(null);
   const [form,   setForm]   = useState(null);
   const [toast,  setToast]  = useState("");
   const [fichaTab, setFTab] = useState("general");
+  const [saving, setSaving] = useState(false);
+
+  // Carga inicial desde Supabase
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await getClientes();
+        if (alive) setLista((data || []).map(normalizeCliente));
+      } catch (e) {
+        if (alive) setError(e.message || "No se pudieron cargar los clientes.");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   function showToast(msg){ setToast(msg); setTimeout(()=>setToast(""),2600); }
 
@@ -138,25 +144,80 @@ export default function Clientes() {
   function openEdit(c){ setForm(JSON.parse(JSON.stringify(c))); setFTab("general"); setView("form"); }
   function openDetail(c){ setSel(c); setFTab("general"); setView("detail"); }
 
-  function save() {
+  async function save() {
     if(!form.nombre.trim()) return;
-    const upd = {...form, modificado:today()};
-    if(upd.id){ setLista(ls=>ls.map(x=>x.id===upd.id?upd:x)); setSel(upd); }
-    else { const n={...upd,id:Date.now()}; setLista(ls=>[...ls,n]); setSel(n); }
-    setView("detail"); showToast("Cliente guardado ✓");
+    setSaving(true);
+    try {
+      const payload = toPayload(form);
+      if (form.id) {
+        const updated = await updateCliente(form.id, payload);
+        const norm = normalizeCliente(updated);
+        setLista(ls => ls.map(x => x.id===form.id ? norm : x));
+        setSel(norm);
+      } else {
+        const created = await createCliente(payload);
+        const norm = normalizeCliente(created);
+        setLista(ls => [norm, ...ls]);
+        setSel(norm);
+      }
+      setView("detail");
+      showToast("Cliente guardado ✓");
+    } catch (e) {
+      showToast("Error: " + (e.message || "no se pudo guardar"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleEstado(c) {
+    const nuevo = c.estado==="Activo" ? "Inactivo" : "Activo";
+    try {
+      const updated = await updateCliente(c.id, { estado: nuevo });
+      const norm = normalizeCliente(updated);
+      setLista(ls => ls.map(x => x.id===c.id ? norm : x));
+      setSel(s => s && s.id===c.id ? norm : s);
+    } catch (e) {
+      showToast("Error: " + (e.message || "no se pudo cambiar el estado"));
+    }
+  }
+
+  async function removeCliente(c) {
+    if (!window.confirm(`¿Eliminar a "${c.nombre}" permanentemente? Esta acción no se puede deshacer.`)) return;
+    try {
+      await deleteCliente(c.id);
+      setLista(ls => ls.filter(x => x.id !== c.id));
+      goList();
+      showToast("Cliente eliminado");
+    } catch (e) {
+      showToast("Error: " + (e.message || "no se pudo eliminar"));
+    }
   }
 
   const sf = k => e => setForm(f=>({...f,[k]:typeof e==="object"?e.target.value:e}));
   const sc = (rol,k) => e => setForm(f=>({...f,contactos:{...f.contactos,[rol]:{...f.contactos[rol],[k]:e.target.value}}}));
 
-  // ── stats ────────────────────────────────────────────────────────────────
+  // stats
   const activos   = lista.filter(c=>c.estado==="Activo").length;
   const conCxC    = lista.filter(c=>(c.cxc?.total-c.cxc?.pagado)>0).length;
   const totalCxC  = lista.reduce((s,c)=>s+Math.max(0,(c.cxc?.total||0)-(c.cxc?.pagado||0)),0);
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // FORM — crear / editar cliente
-  // ════════════════════════════════════════════════════════════════════════════
+  // Loading / error gates (solo afectan la vista de lista)
+  if (loading && view==="list") {
+    return <div style={{textAlign:"center",padding:"60px 0",color:"var(--on-sur3)"}}>Cargando clientes…</div>;
+  }
+  if (error && view==="list") {
+    return (
+      <div style={{textAlign:"center",padding:"48px 24px",color:"var(--err)"}}>
+        <div style={{fontSize:32,marginBottom:8}}>⚠️</div>
+        <div style={{fontWeight:600,marginBottom:6}}>No se pudieron cargar los clientes</div>
+        <div style={{fontSize:13,color:"var(--on-sur3)"}}>{error}</div>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // FORM - crear / editar cliente
+  // ============================================================================
   if (view==="form" && form) {
     const CONTACTO_LABELS = {
       principal:"Contacto Principal",
@@ -300,8 +361,8 @@ export default function Clientes() {
                 ))}
               </div>
             </div>
-            <button className="btn btn-filled" style={{width:"100%",marginBottom:8}} onClick={save} disabled={!form.nombre.trim()}>
-              {form.id?"Guardar cambios":"Crear cliente"}
+            <button className="btn btn-filled" style={{width:"100%",marginBottom:8}} onClick={save} disabled={!form.nombre.trim()||saving}>
+              {saving?"Guardando…":(form.id?"Guardar cambios":"Crear cliente")}
             </button>
             <button className="btn btn-text" style={{width:"100%"}} onClick={goList}>Cancelar</button>
           </div>
@@ -310,9 +371,9 @@ export default function Clientes() {
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // DETAIL — ficha del cliente
-  // ════════════════════════════════════════════════════════════════════════════
+  // ============================================================================
+  // DETAIL - ficha del cliente
+  // ============================================================================
   if (view==="detail" && sel) {
     const c = lista.find(x=>x.id===sel.id)||sel;
     const cxcPend = Math.max(0,(c.cxc?.total||0)-(c.cxc?.pagado||0));
@@ -341,9 +402,10 @@ export default function Clientes() {
           </div>
           <div style={{display:"flex",gap:8}}>
             <button className="btn btn-outlined" onClick={()=>openEdit(c)}>✏️ Editar</button>
-            <button className="btn btn-filled" style={{background:"var(--sec)"}} onClick={()=>setLista(ls=>ls.map(x=>x.id===c.id?{...x,estado:c.estado==="Activo"?"Inactivo":"Activo"}:x))||setSel(s=>({...s,estado:c.estado==="Activo"?"Inactivo":"Activo"}))}>
+            <button className="btn btn-filled" style={{background:"var(--sec)"}} onClick={()=>toggleEstado(c)}>
               {c.estado==="Activo"?"Desactivar":"Activar"}
             </button>
+            <button className="btn btn-outlined" style={{borderColor:"var(--err)",color:"var(--err)"}} onClick={()=>removeCliente(c)}>🗑 Eliminar</button>
           </div>
         </div>
 
@@ -420,7 +482,7 @@ export default function Clientes() {
                     ):(
                       <div style={{textAlign:"center",color:"var(--on-sur4)",fontSize:13,padding:"8px 0"}}>
                         Sin contacto configurado<br/>
-                        <button className="btn btn-sm btn-outlined" style={{marginTop:8}} onClick={()=>openEdit(c)||setFTab("contactos")}>Agregar</button>
+                        <button className="btn btn-sm btn-outlined" style={{marginTop:8}} onClick={()=>{openEdit(c);setFTab("contactos");}}>Agregar</button>
                       </div>
                     )}
                   </div>
@@ -482,6 +544,7 @@ export default function Clientes() {
                     <span className="mono" style={{fontWeight:600,color}}>{v}</span>
                   </div>
                 ))}
+                <div style={{marginTop:10,fontSize:11,color:"var(--on-sur4)",fontStyle:"italic"}}>El historial y CxC se calcularán desde facturas reales próximamente.</div>
               </div>
             </div>
           </div>
@@ -519,16 +582,25 @@ export default function Clientes() {
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
+  // ============================================================================
   // LIST
-  // ════════════════════════════════════════════════════════════════════════════
+  // ============================================================================
+  return <ClientesList
+    lista={lista} activos={activos} conCxC={conCxC} totalCxC={totalCxC}
+    openNew={openNew} openEdit={openEdit} openDetail={openDetail}
+    fmtRD={fmtRD} r2={r2} toast={toast}
+  />;
+}
+
+// Lista separada para poder usar sus propios hooks de filtro sin romper reglas de hooks
+function ClientesList({ lista, activos, conCxC, totalCxC, openNew, openEdit, openDetail, fmtRD, r2, toast }) {
   const [q,       setQ]       = useState("");
   const [filtro,  setFiltro]  = useState("todos");
   const [filtZona,setFiltZona]= useState("todas");
 
   const filtered = lista.filter(c=>{
     const m = c.nombre.toLowerCase().includes(q.toLowerCase()) ||
-              c.codigo.toLowerCase().includes(q.toLowerCase()) ||
+              (c.codigo||"").toLowerCase().includes(q.toLowerCase()) ||
               (c.rnc||"").toLowerCase().includes(q.toLowerCase());
     const byEst  = filtro==="todos"    || c.estado===filtro;
     const byZona = filtZona==="todas"  || c.zona===filtZona;
