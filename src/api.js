@@ -193,3 +193,25 @@ export async function updateCliente(id, data) {
 export async function deleteCliente(id) {
   return apiDelete(`/api/clientes/${id}`);
 }
+// ── MATERIALES ────────────────────────────────────────────────────────────
+export async function getMateriales() {
+  return apiGet("/api/materiales");
+}
+export async function createMaterial(data) {
+  const res = await apiPost("/api/materiales", data);
+  return res.json();
+}
+export async function updateMaterial(id, data) {
+  return apiPut(`/api/materiales/${id}`, data);
+}
+export async function deleteMaterial(id) {
+  return apiDelete(`/api/materiales/${id}`);
+}
+
+// ── PRODUCTOS (solo lectura - catalogo SISCOP) ─────────────────────────────
+export async function getProductos() {
+  return apiGet("/api/productos");
+}
+export async function getProducto(codProd) {
+  return apiGet(`/api/productos/${encodeURIComponent(codProd)}`);
+}
