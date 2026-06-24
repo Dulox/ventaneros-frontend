@@ -1,83 +1,46 @@
 /**
- * INVENTARIO - Tab Materiales integrado con Supabase via backend.
+ * INVENTARIO - Materiales + Productos integrados con Supabase.
  * Tabs:
- *  1. Materiales      - CRUD real contra /api/materiales
- *  2. Productos       - (mock por ahora; backend /api/productos listo, se conecta luego)
+ *  1. Materiales      - CRUD real /api/materiales
+ *  2. Productos       - solo lectura /api/productos (catalogo SISCOP + recetas)
  *  3. Almacenes       - (mock; requiere tabla nueva)
  *  4. Inventario Fis. - (mock; requiere tabla movimientos)
- *
- * Field mapping materiales (DB <- mock):
- *   categoria <- cat ; costo_barra <- costo ; venta_barra <- p_distrib ; venta_pie <- p_barra
- *   (stock, minimo, maximo, depto, color, peso, barras, activo, notas son columnas directas)
  */
 import { useState, useEffect } from "react";
-import { getMateriales, createMaterial, updateMaterial, deleteMaterial } from "../../api.js";
+import {
+  getMateriales, createMaterial, updateMaterial, deleteMaterial,
+  getProductos, getProducto,
+} from "../../api.js";
 
 function fmtRD(n)   { return `RD$${Math.round(n||0).toLocaleString("es-DO")}`; }
 function r2(n)      { return Math.round((n||0)*100)/100; }
-function today()    { return new Date().toISOString().slice(0,10); }
 
 const CATEGORIAS = ["Perfiles de Marco","Perfiles de Hoja","Rieles","Vidrios","Herrajes","Accesorios","Insumos","Otros"];
 const DEPTOS     = ["HE — Herrajes","VE — Ventanas","PU — Puertas","PE — Persianas","VI — Vidrios","IN — Insumos"];
 const UNIDADES   = ["Barra 20p","Barra 21p","Unidad","Pie²","Pie lineal","Rollo","Caja","Kg","Litro"];
 const COLORES    = ["Natural","LBCO","BCE","Karatachi","Negro","Mill Finish","Blanco"];
 
-// Normaliza una fila de materiales (DB) al shape que usa el front (con cat/costo/p_distrib/p_barra alias)
 function normalizeMat(m) {
   return {
     ...m,
-    codigo: m.codigo || "",
-    nombre: m.nombre || "",
-    cat: m.categoria || "Otros",
-    depto: m.depto || "VE — Ventanas",
-    unidad: m.unidad || "Unidad",
-    color: m.color || "—",
-    stock: Number(m.stock) || 0,
-    minimo: Number(m.minimo) || 0,
-    maximo: Number(m.maximo) || 0,
-    costo: Number(m.costo_barra) || 0,
-    p_distrib: Number(m.venta_barra) || 0,
-    p_barra: Number(m.venta_pie) || 0,
-    peso: Number(m.peso) || 0,
-    barras: Number(m.barras) || 0,
-    activo: m.activo !== false,
-    notas: m.notas || "",
+    codigo: m.codigo || "", nombre: m.nombre || "",
+    cat: m.categoria || "Otros", depto: m.depto || "VE — Ventanas",
+    unidad: m.unidad || "Unidad", color: m.color || "—",
+    stock: Number(m.stock) || 0, minimo: Number(m.minimo) || 0, maximo: Number(m.maximo) || 0,
+    costo: Number(m.costo_barra) || 0, p_distrib: Number(m.venta_barra) || 0, p_barra: Number(m.venta_pie) || 0,
+    peso: Number(m.peso) || 0, barras: Number(m.barras) || 0,
+    activo: m.activo !== false, notas: m.notas || "",
   };
 }
-
-// Convierte el form del front al payload de columnas reales de la tabla materiales
 function matToPayload(f) {
   return {
-    codigo: f.codigo,
-    nombre: f.nombre,
-    categoria: f.cat || null,
-    depto: f.depto || null,
-    unidad: f.unidad || null,
-    color: f.color || null,
-    stock: Number(f.stock) || 0,
-    minimo: Number(f.minimo) || 0,
-    maximo: Number(f.maximo) || 0,
-    costo_barra: Number(f.costo) || 0,
-    venta_barra: Number(f.p_distrib) || 0,
-    venta_pie: Number(f.p_barra) || 0,
-    peso: Number(f.peso) || 0,
-    barras: Number(f.barras) || 0,
-    activo: !!f.activo,
-    notas: f.notas || null,
+    codigo: f.codigo, nombre: f.nombre, categoria: f.cat || null, depto: f.depto || null,
+    unidad: f.unidad || null, color: f.color || null,
+    stock: Number(f.stock) || 0, minimo: Number(f.minimo) || 0, maximo: Number(f.maximo) || 0,
+    costo_barra: Number(f.costo) || 0, venta_barra: Number(f.p_distrib) || 0, venta_pie: Number(f.p_barra) || 0,
+    peso: Number(f.peso) || 0, barras: Number(f.barras) || 0, activo: !!f.activo, notas: f.notas || null,
   };
 }
-
-// ── Demo data para los tabs aun no conectados (Productos/Almacenes/Fisico) ────
-const DEMO_PRODUCTOS = [
-  { id:1, codigo:"VCRCOF", nombre:"Ventana Corrediza Tradicional", tipo:"Ventana", activo:true,
-    descripcion:"Ventana corrediza de 2 hojas", notas:"",
-    receta:[] },
-];
-const DEMO_ALMACENES = [
-  { id:1, codigo:"ALM-01", nombre:"Almacén Principal", ubicacion:"Planta baja", responsable:"—", principal:true, activo:true },
-];
-const DEMO_MOVIMIENTOS = [];
-
 function stockStatus(m) {
   if (m.stock <= 0)          return { label:"Sin stock",   cls:"chip-filled-err",  color:"var(--err)" };
   if (m.stock < m.minimo)    return { label:"Bajo mínimo", cls:"chip-filled-warn", color:"var(--warn)" };
@@ -107,7 +70,7 @@ export default function Inventario() {
       </div>
 
       {tab==="materiales" && <TabMateriales showToast={showToast}/>}
-      {tab==="productos"  && <TabPlaceholder titulo="Productos / Recetas" nota="Backend listo (/api/productos). Se conecta en el siguiente paso."/>}
+      {tab==="productos"  && <TabProductos/>}
       {tab==="almacenes"  && <TabPlaceholder titulo="Almacenes" nota="Requiere crear la tabla 'almacenes' en Supabase."/>}
       {tab==="fisico"     && <TabPlaceholder titulo="Inventario Físico" nota="Requiere crear la tabla 'movimientos' en Supabase."/>}
 
@@ -122,6 +85,159 @@ function TabPlaceholder({ titulo, nota }) {
       <div style={{fontSize:40,marginBottom:12}}>🚧</div>
       <div style={{fontWeight:700,fontSize:18,marginBottom:6}}>{titulo}</div>
       <div style={{fontSize:13,maxWidth:420,margin:"0 auto"}}>{nota}</div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAB PRODUCTOS - solo lectura del catalogo SISCOP
+// ════════════════════════════════════════════════════════════════════════════
+function TabProductos() {
+  const [productos, setProds] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
+  const [q, setQ]             = useState("");
+  const [filtSerie, setFiltSerie] = useState("todas");
+  const [sel, setSel]         = useState(null);     // cod_prod seleccionado
+  const [detalle, setDetalle] = useState(null);     // producto + receta
+  const [loadingDet, setLoadingDet] = useState(false);
+  const [verFormulas, setVerFormulas] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await getProductos();
+        if (alive) setProds(data || []);
+      } catch (e) {
+        if (alive) setError(e.message || "No se pudieron cargar los productos.");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  async function selectProd(cod) {
+    setSel(cod);
+    setLoadingDet(true);
+    setDetalle(null);
+    try {
+      const d = await getProducto(cod);
+      setDetalle(d);
+    } catch (e) {
+      setDetalle({ error: e.message || "No se pudo cargar la receta." });
+    } finally {
+      setLoadingDet(false);
+    }
+  }
+
+  if (loading) return <div style={{textAlign:"center",padding:"60px 0",color:"var(--on-sur3)"}}>Cargando productos…</div>;
+  if (error)   return <div style={{textAlign:"center",padding:"48px 24px",color:"var(--err)"}}><div style={{fontSize:32,marginBottom:8}}>⚠️</div><div style={{fontWeight:600}}>{error}</div></div>;
+
+  const series = [...new Set(productos.map(p=>p.serie).filter(Boolean))].sort();
+  const filtered = productos.filter(p=>{
+    const mq = (p.nombre||"").toLowerCase().includes(q.toLowerCase()) || (p.cod_prod||"").toLowerCase().includes(q.toLowerCase());
+    const ms = filtSerie==="todas" || p.serie===filtSerie;
+    return mq && ms;
+  });
+
+  return(
+    <div>
+      <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+        <div className="sbar" style={{flex:1,minWidth:180}}>
+          <span style={{color:"var(--on-sur4)"}}>🔍</span>
+          <input placeholder="Buscar por código o nombre..." value={q} onChange={e=>setQ(e.target.value)}/>
+          {q&&<button style={{background:"none",border:"none",cursor:"pointer",color:"var(--on-sur4)",fontSize:16}} onClick={()=>setQ("")}>✕</button>}
+        </div>
+        <select style={{padding:"8px 10px",borderRadius:"var(--rfull)",border:"1px solid var(--out)",background:"var(--sur)",fontFamily:"inherit",fontSize:12,outline:"none"}} value={filtSerie} onChange={e=>setFiltSerie(e.target.value)}>
+          <option value="todas">Todas las series</option>
+          {series.map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+        <span style={{fontSize:12,color:"var(--on-sur4)"}}>{filtered.length} producto(s)</span>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:16,alignItems:"start"}}>
+        {/* Lista */}
+        <div className="card" style={{maxHeight:560,overflow:"auto"}}>
+          <div style={{padding:"6px 0"}}>
+            {filtered.length===0&&<div style={{padding:24,textAlign:"center",color:"var(--on-sur4)",fontSize:13}}>Sin productos</div>}
+            {filtered.map(p=>(
+              <div key={p.id} onClick={()=>selectProd(p.cod_prod)} style={{padding:"10px 16px",cursor:"pointer",background:sel===p.cod_prod?"var(--pri-lt)":"transparent",borderLeft:sel===p.cod_prod?"3px solid var(--pri)":"3px solid transparent"}}>
+                <div style={{fontWeight:600,fontSize:13}}>{p.nombre}</div>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:2}}>
+                  <span className="mono" style={{fontSize:11,color:"var(--on-sur3)"}}>{p.cod_prod}</span>
+                  {p.serie&&<span className="chip" style={{fontSize:10}}>{p.serie}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Detalle */}
+        {!sel ? (
+          <div style={{textAlign:"center",padding:"64px 24px",color:"var(--on-sur4)"}}>
+            <div style={{fontSize:40,marginBottom:12}}>🏗️</div>
+            <div style={{fontWeight:600}}>Selecciona un producto</div>
+            <div style={{fontSize:13,marginTop:4}}>para ver su receta de componentes</div>
+          </div>
+        ) : loadingDet ? (
+          <div style={{textAlign:"center",padding:"60px 0",color:"var(--on-sur3)"}}>Cargando receta…</div>
+        ) : detalle?.error ? (
+          <div style={{textAlign:"center",padding:"48px 24px",color:"var(--err)"}}>{detalle.error}</div>
+        ) : detalle ? (
+          <div className="card">
+            <div className="card-hdr">
+              <div>
+                <div className="card-ttl">{detalle.nombre}</div>
+                <div style={{fontSize:12,color:"var(--on-sur3)",marginTop:2}}>
+                  <span className="mono">{detalle.cod_prod}</span>
+                  {detalle.serie && <> · Serie {detalle.serie}</>}
+                  {detalle.precio_pie2 > 0 && <> · {fmtRD(detalle.precio_pie2)}/pie²</>}
+                </div>
+              </div>
+              <button className="btn btn-sm btn-outlined" onClick={()=>setVerFormulas(v=>!v)}>
+                {verFormulas ? "Ocultar fórmulas" : "Ver fórmulas"}
+              </button>
+            </div>
+            <div className="card-bdy">
+              <div style={{fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:"var(--on-sur3)",marginBottom:8}}>
+                Receta · {(detalle.receta||[]).length} componente(s)
+              </div>
+              {(detalle.receta||[]).length===0 ? (
+                <div style={{padding:24,textAlign:"center",color:"var(--on-sur4)",fontSize:13}}>Este producto no tiene componentes registrados.</div>
+              ) : (
+                <div className="twrap"><table style={{width:"100%"}}>
+                  <thead><tr>
+                    <th>#</th><th>Código</th><th>Descripción</th><th>Tipo</th>
+                    {verFormulas && <><th>Qty fórmula</th><th>Corte H</th><th>Corte V</th><th>Holgura</th></>}
+                  </tr></thead>
+                  <tbody>
+                    {detalle.receta.map((c,i)=>(
+                      <tr key={c.id || i}>
+                        <td style={{fontSize:12,color:"var(--on-sur4)"}}>{c.sort}</td>
+                        <td><span className="mono" style={{fontWeight:700,color:"var(--pri)",fontSize:12}}>{c.codigo}</span></td>
+                        <td style={{fontSize:13}}>{c.descrip}</td>
+                        <td><span className="chip" style={{fontSize:10}}>{c.tipo}</span></td>
+                        {verFormulas && <>
+                          <td><span className="mono" style={{fontSize:10,color:"var(--on-sur3)"}}>{c.qty_formula||"—"}</span></td>
+                          <td><span className="mono" style={{fontSize:10,color:"var(--on-sur3)"}}>{c.cut_h_formula||"—"}</span></td>
+                          <td><span className="mono" style={{fontSize:10,color:"var(--on-sur3)"}}>{c.cut_v_formula||"—"}</span></td>
+                          <td className="mono" style={{fontSize:11}}>{c.holgura}</td>
+                        </>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table></div>
+              )}
+              <div style={{marginTop:12,fontSize:11,color:"var(--on-sur4)",fontStyle:"italic"}}>
+                Catálogo de solo lectura. Las fórmulas alimentan el motor de cálculo de las calculadoras.
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -205,7 +321,6 @@ function TabMateriales({ showToast }) {
     return mq&&mc&&ms;
   });
 
-  // FORM
   if(view==="form-mat"&&form) return(
     <div>
       <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20}}>
@@ -282,7 +397,6 @@ function TabMateriales({ showToast }) {
     </div>
   );
 
-  // LIST
   if (loading) return <div style={{textAlign:"center",padding:"60px 0",color:"var(--on-sur3)"}}>Cargando materiales…</div>;
   if (error)   return <div style={{textAlign:"center",padding:"48px 24px",color:"var(--err)"}}><div style={{fontSize:32,marginBottom:8}}>⚠️</div><div style={{fontWeight:600}}>No se pudieron cargar los materiales</div><div style={{fontSize:13,color:"var(--on-sur3)",marginTop:6}}>{error}</div></div>;
 
